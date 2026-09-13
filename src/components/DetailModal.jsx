@@ -345,25 +345,11 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
               {/* Document Display Canvas */}
               <div className="doc-viewer-box">
                 {isPdf ? (
-                  <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
-                    <FileText size={54} color="#f43f5e" style={{ margin: '0 auto 16px' }} />
-                    <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: 6 }}>
-                      {record.file_name || 'Aadhaar_Document.pdf'}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', marginBottom: 18 }}>
-                      PDF document preview available via viewer or browser tab
-                    </div>
-                    <a
-                      href={record.secureDocUrl || record.aadhar_file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-action-view"
-                      style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                    >
-                      <ExternalLink size={14} />
-                      <span>Open PDF in New Window</span>
-                    </a>
-                  </div>
+                  <iframe 
+                    src={`${record.secureDocUrl || record.aadhar_file_url}#toolbar=0`} 
+                    style={{ width: '100%', height: '100%', border: 'none', minHeight: '400px' }} 
+                    title="Aadhaar Document PDF"
+                  />
                 ) : (
                   <img
                     src={record.secureDocUrl || record.aadhar_file_url}

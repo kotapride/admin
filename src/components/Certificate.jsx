@@ -53,57 +53,59 @@ export default function CertificateGenerator({ student, onClose }) {
       </div>
 
       {/* The Printable Area */}
-      <div id="printable-certificate" className="cert-container" ref={certificateRef}>
-        {/* Borders */}
-        <div className="cert-border"></div>
-        <div className="cert-inner-border"></div>
+      <div className="cert-scale-wrapper" style={{ transform: 'scale(min(1, calc(90vw / 1100)))', transformOrigin: 'top center' }}>
+        <div id="printable-certificate" className="cert-container" ref={certificateRef}>
+          {/* Borders */}
+          <div className="cert-border"></div>
+          <div className="cert-inner-border"></div>
 
-        {/* Ribbons */}
-        <div className="ribbon-tr-navy"></div>
-        <div className="ribbon-tr-gold"></div>
-        <div className="ribbon-bl-navy"></div>
-        <div className="ribbon-bl-gold"></div>
+          {/* Ribbons */}
+          <div className="ribbon-tr-navy"></div>
+          <div className="ribbon-tr-gold"></div>
+          <div className="ribbon-bl-navy"></div>
+          <div className="ribbon-bl-gold"></div>
 
-        <div className="cert-content">
-          <div className="cert-header">
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <img src="/logo.png" alt="PrepMagic Logo" style={{ maxWidth: '280px', height: 'auto' }} />
-            </div>
-            <div className="cert-title">
-              <h1>CERTIFICATE</h1>
-              <h2>OF ACHIEVEMENT</h2>
-            </div>
-          </div>
-
-          <div className="cert-presented">Proudly Presented To</div>
-          
-          <h3 className="cert-name">{student.full_name || student.name}</h3>
-          
-          <p className="cert-description">
-            This certificate is proudly presented to recognize the successful completion and participation in the <strong>{student.course}</strong> program. We acknowledge their dedication, effort, and commitment to skill development.
-          </p>
-
-          <div className="cert-footer">
-            <div className="cert-signature">
-              <div className="cert-signature-line"></div>
-              <span>Admin Signature</span>
-            </div>
-
-            <div className="cert-seal">
-              <div className="seal-ribbon-left"></div>
-              <div className="seal-ribbon-right"></div>
-              <div className="seal-circle">
-                <div className="seal-inner">
-                  <div className="seal-stars">★★★</div>
-                  <div className="seal-number">1</div>
-                  <div className="seal-stars">★★★</div>
-                </div>
+          <div className="cert-content">
+            <div className="cert-header">
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <img src="/logo.png" alt="PrepMagic Logo" style={{ maxWidth: '280px', height: 'auto' }} />
+              </div>
+              <div className="cert-title">
+                <h1>CERTIFICATE</h1>
+                <h2>OF ACHIEVEMENT</h2>
               </div>
             </div>
 
-            <div className="cert-signature">
-              <div className="cert-signature-line"></div>
-              <span>Director Signature</span>
+            <div className="cert-presented">Proudly Presented To</div>
+            
+            <h3 className="cert-name">{student.full_name || student.name}</h3>
+            
+            <p className="cert-description">
+              This certificate is proudly presented to recognize the successful completion and participation in the <strong>{student.course || 'Skill Development'}</strong> program. We acknowledge their dedication, effort, and commitment to skill development.
+            </p>
+
+            <div className="cert-footer">
+              <div className="cert-signature">
+                <div className="cert-signature-line"></div>
+                <span>Admin Signature</span>
+              </div>
+
+              <div className="cert-seal">
+                <div className="seal-ribbon-left"></div>
+                <div className="seal-ribbon-right"></div>
+                <div className="seal-circle">
+                  <div className="seal-inner">
+                    <div className="seal-stars">★★★</div>
+                    <div className="seal-number">1</div>
+                    <div className="seal-stars">★★★</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="cert-signature">
+                <div className="cert-signature-line"></div>
+                <span>Director Signature</span>
+              </div>
             </div>
           </div>
         </div>
