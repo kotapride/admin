@@ -344,7 +344,7 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
 
               {/* Document Display Canvas */}
               <div className="doc-viewer-box">
-                {isPdf ? (
+                {isPdf && !(record.secureDocUrl || record.aadhar_file_url)?.includes('unsplash.com') ? (
                   <iframe 
                     src={`${record.secureDocUrl || record.aadhar_file_url}#toolbar=0`} 
                     style={{ width: '100%', height: '100%', border: 'none', minHeight: '400px' }} 

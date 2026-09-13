@@ -14,6 +14,11 @@ export default function CertificateGenerator({ student, onClose }) {
     setDownloading(true);
     
     try {
+      // Temporarily remove transform on the wrapper for html2canvas
+      const wrapper = certificateRef.current.parentElement;
+      const originalTransform = wrapper.style.transform;
+      wrapper.style.transform = 'none';
+
       // html2canvas requires the element to be visible
       const canvas = await html2canvas(certificateRef.current, {
         scale: 2, // 2x resolution for better print quality
@@ -22,6 +27,9 @@ export default function CertificateGenerator({ student, onClose }) {
         logging: false
       });
       
+      // Restore transform
+      wrapper.style.transform = originalTransform;
+
       const image = canvas.toDataURL('image/png');
       
       // Create automatic download link
@@ -66,11 +74,13 @@ export default function CertificateGenerator({ student, onClose }) {
           <div className="ribbon-bl-gold"></div>
 
           <div className="cert-content">
-            <div className="cert-header">
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <img src="/logo.png" alt="PrepMagic Logo" style={{ maxWidth: '280px', height: 'auto' }} />
-              </div>
-              <div className="cert-title">
+            {/* Logo at top left corner */}
+            <div style={{ position: 'absolute', top: '60px', left: '60px', zIndex: 30 }}>
+              <img src="/logo.png" alt="PrepMagic Logo" style={{ maxWidth: '220px', height: 'auto' }} />
+            </div>
+
+            <div className="cert-header" style={{ justifyContent: 'center', width: '100%' }}>
+              <div className="cert-title" style={{ alignItems: 'center', textAlign: 'center' }}>
                 <h1>CERTIFICATE</h1>
                 <h2>OF ACHIEVEMENT</h2>
               </div>
