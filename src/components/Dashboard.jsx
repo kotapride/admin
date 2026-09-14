@@ -129,6 +129,8 @@ export default function Dashboard({ token, user, onLogout }) {
           onPageChange={(p) => fetchRecords(p)}
           onRefresh={() => fetchRecords(pagination.page)}
           onSelectRecord={(id) => setSelectedRecordId(id)}
+          token={token}
+          onRecordUpdated={handleRecordUpdated}
         />
       </main>
 

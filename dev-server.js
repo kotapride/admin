@@ -12,20 +12,35 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Serverless API bridge for local development
-app.all('/api/login', (req, res) => {
-  return loginHandler(req, res);
+// Serverless API bridge for local development with hot-reloading
+app.all('/api/login', async (req, res) => {
+  try {
+    const { default: handler } = await import(`./api/login.js?t=${Date.now()}`);
+    return handler(req, res);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.all('/api/records', (req, res) => {
-  return recordsHandler(req, res);
+app.all('/api/records', async (req, res) => {
+  try {
+    const { default: handler } = await import(`./api/records.js?t=${Date.now()}`);
+    return handler(req, res);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.all('/api/records/:id', (req, res) => {
-  req.query = { ...req.query, id: req.params.id };
-  return recordIdHandler(req, res);
+app.all('/api/records/:id', async (req, res) => {
+  try {
+    req.query = { ...req.query, id: req.params.id };
+    const { default: handler } = await import(`./api/records/[id].js?t=${Date.now()}`);
+    return handler(req, res);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 async function startServer() {

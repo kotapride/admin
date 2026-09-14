@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   CheckCircle2,
@@ -13,7 +13,9 @@ import {
   RotateCcw,
   Loader2,
   ShieldCheck,
-  Award
+  Award,
+  Camera,
+  UploadCloud
 } from 'lucide-react';
 import CertificateGenerator from './Certificate';
 
@@ -25,6 +27,59 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
   const [adminNotes, setAdminNotes] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showCert, setShowCert] = useState(false);
+  const [photoUpdating, setPhotoUpdating] = useState(false);
+  const photoInputRef = useRef(null);
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const maxSize = 5 * 1024 * 1024;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, or WebP).');
+      return;
+    }
+    if (file.size > maxSize) {
+      alert('Photo size exceeds 5MB limit.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result;
+      setPhotoUpdating(true);
+      try {
+        const response = await fetch(`/api/records/${recordId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            photoBase64: base64,
+            photoMimeType: file.type,
+            photoFileName: file.name
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to update student photo.');
+        }
+
+        setRecord(data.record);
+        if (typeof onRecordUpdated === 'function') {
+          onRecordUpdated(data.record);
+        }
+      } catch (err) {
+        alert(`Error updating photo: ${err.message}`);
+      } finally {
+        setPhotoUpdating(false);
+        if (photoInputRef.current) photoInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     fetchDetail();
@@ -128,9 +183,9 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
           <div className="modal-title-group">
             <h2 className="modal-title">Aadhaar Application Review</h2>
             {record && (
-              <span className={`badge ${record.status.toLowerCase()}`}>
+              <span className={`badge ${(record.status || 'PENDING').toLowerCase()}`}>
                 <span className="badge-dot"></span>
-                {record.status}
+                {record.status || 'PENDING'}
               </span>
             )}
           </div>
@@ -155,6 +210,128 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
           <div className="modal-body-grid">
             {/* Left Column: Details & Verification Action */}
             <div className="modal-left-col">
+              {/* Student Profile & Photo Header with Update Action */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '16px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color, #334155)',
+                marginBottom: '16px',
+                position: 'relative'
+              }}>
+                <input
+                  type="file"
+                  ref={photoInputRef}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoSelect}
+                  style={{ display: 'none' }}
+                />
+
+                <div style={{ position: 'relative', width: '68px', height: '84px', flexShrink: 0 }}>
+                  {record.photo_url ? (
+                    <img
+                      src={record.photo_url}
+                      alt={record.full_name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '8px',
+                        objectFit: 'cover',
+                        border: '2px solid var(--primary-light, #6366f1)',
+                        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.25)'
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '8px',
+                        background: '#1e293b',
+                        color: '#94a3b8',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '1.3rem',
+                        border: '1px dashed #475569'
+                      }}
+                    >
+                      <span>{(record.full_name || 'U').charAt(0).toUpperCase()}</span>
+                      <span style={{ fontSize: '0.6rem', fontWeight: 500, color: '#94a3b8' }}>NO PHOTO</span>
+                    </div>
+                  )}
+
+                  {/* Camera overlay button to update photo */}
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={photoUpdating || actionLoading}
+                    title="Change / Upload Student Photo"
+                    style={{
+                      position: 'absolute',
+                      bottom: '-4px',
+                      right: '-4px',
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '50%',
+                      background: '#4f46e5',
+                      border: '2px solid #0f172a',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {photoUpdating ? (
+                      <Loader2 size={12} className="spin" />
+                    ) : (
+                      <Camera size={13} />
+                    )}
+                  </button>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <h3 style={{ margin: '0 0 4px', fontSize: '1.15rem', color: 'var(--text-main, #ffffff)', fontWeight: 700 }}>
+                      {record.full_name}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={photoUpdating || actionLoading}
+                      style={{
+                        background: 'rgba(79, 70, 229, 0.15)',
+                        color: '#818cf8',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        borderRadius: '6px',
+                        padding: '3px 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <UploadCloud size={12} />
+                      <span>{photoUpdating ? 'Uploading...' : record.photo_url ? 'Change Photo' : 'Upload Photo'}</span>
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)', display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+                    <span>Class: <strong style={{ color: 'var(--text-main, #e2e8f0)' }}>{record.class || 'N/A'}</strong></span>
+                    <span>Course: <strong style={{ color: 'var(--text-main, #e2e8f0)' }}>{record.course || 'N/A'}</strong></span>
+                  </div>
+                </div>
+              </div>
+
               <div className="info-grid">
                 <div className="info-item">
                   <span className="info-label">Full Name</span>
@@ -255,7 +432,7 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
                   </button>
                 </div>
 
-                {record.status !== 'PENDING' && (
+                {(record.status || 'PENDING') !== 'PENDING' && (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -405,7 +582,14 @@ export default function DetailModal({ recordId, token, onClose, onRecordUpdated,
       {showCert && (
         <CertificateGenerator 
           student={record} 
+          token={token}
           onClose={() => setShowCert(false)} 
+          onPhotoUpdated={(updatedRecord) => {
+            setRecord(updatedRecord);
+            if (typeof onRecordUpdated === 'function') {
+              onRecordUpdated(updatedRecord);
+            }
+          }}
         />
       )}
     </div>

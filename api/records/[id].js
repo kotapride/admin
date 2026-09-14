@@ -49,9 +49,9 @@ export default async function handler(req, res) {
           });
         }
 
-        // Generate temporary signed URL (valid for 60 minutes) for secure Aadhaar document access
+        // Generate temporary signed URL for Supabase storage paths (Cloudinary URLs are already secure public URLs)
         let secureDocUrl = record.aadhar_file_url;
-        if (record.aadhar_file_path) {
+        if (record.aadhar_file_path && !record.aadhar_file_url?.includes('cloudinary.com') && !record.aadhar_file_path.startsWith('student_registrations')) {
           const { data: signedData } = await supabase.storage
             .from(bucketName)
             .createSignedUrl(record.aadhar_file_path, 3600);
@@ -65,6 +65,7 @@ export default async function handler(req, res) {
           success: true,
           record: {
             ...record,
+            status: record.status || 'PENDING',
             secureDocUrl
           }
         });
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
         }
       }
 
-      const { status, adminNotes } = body || {};
+      const { status, adminNotes, photoBase64, photoMimeType, photoFileName } = body || {};
 
       if (status && !['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
         return res.status(400).json({
@@ -113,21 +114,83 @@ export default async function handler(req, res) {
         if (adminNotes !== undefined) updatePayload.admin_notes = adminNotes;
         updatePayload.updated_at = new Date().toISOString();
 
-        const { data: updatedRecord, error } = await supabase
+        // Handle Admin Photo Upload / Replacement
+        if (photoBase64) {
+          const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const mimeType = photoMimeType || 'image/jpeg';
+          const cleanName = (photoFileName || 'student_photo.jpg').replace(/[^a-zA-Z0-9.-]/g, '_');
+          const newPhotoPath = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${cleanName}`;
+
+          // Upload new photo to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from(bucketName)
+            .upload(newPhotoPath, buffer, {
+              contentType: mimeType,
+              upsert: true
+            });
+
+          if (uploadError) {
+            console.error('Admin photo upload error:', uploadError);
+            return res.status(500).json({
+              success: false,
+              error: `Failed to upload student photo: ${uploadError.message}`
+            });
+          }
+
+          const { data: urlData } = supabase.storage
+            .from(bucketName)
+            .getPublicUrl(newPhotoPath);
+
+          const newPhotoUrl = urlData?.publicUrl || '';
+          updatePayload.photo_url = newPhotoUrl;
+          updatePayload.photo_file_path = newPhotoPath;
+
+          // Delete previous photo from storage if existed
+          const { data: existingRecord } = await supabase
+            .from('submissions')
+            .select('photo_file_path')
+            .eq('id', id)
+            .single();
+
+          if (existingRecord?.photo_file_path) {
+            await supabase.storage
+              .from(bucketName)
+              .remove([existingRecord.photo_file_path]);
+          }
+        }
+
+        let finalRecord = null;
+        let { data: updatedRecord, error } = await supabase
           .from('submissions')
           .update(updatePayload)
           .eq('id', id)
           .select()
           .single();
 
-        if (error) {
+        if (error && error.message?.includes('status')) {
+          // If status column doesn't exist yet in Supabase, retry without it
+          const requestedStatus = updatePayload.status;
+          delete updatePayload.status;
+          const retryRes = await supabase
+            .from('submissions')
+            .update(updatePayload)
+            .eq('id', id)
+            .select()
+            .single();
+
+          if (retryRes.error) throw retryRes.error;
+          finalRecord = { ...retryRes.data, status: requestedStatus || 'PENDING' };
+        } else if (error) {
           throw error;
+        } else {
+          finalRecord = { ...updatedRecord, status: updatedRecord?.status || updatePayload.status || 'PENDING' };
         }
 
         return res.status(200).json({
           success: true,
           message: 'Record updated successfully.',
-          record: updatedRecord
+          record: finalRecord
         });
       } else {
         // Demo Mode
@@ -139,6 +202,11 @@ export default async function handler(req, res) {
 
         if (status) record.status = status;
         if (adminNotes !== undefined) record.admin_notes = adminNotes;
+        if (photoBase64) {
+          record.photo_url = photoBase64.startsWith('data:') 
+            ? photoBase64 
+            : `data:${photoMimeType || 'image/jpeg'};base64,${photoBase64}`;
+        }
         record.updated_at = new Date().toISOString();
 
         return res.status(200).json({
@@ -154,17 +222,21 @@ export default async function handler(req, res) {
     // --------------------------------------------------------------------------
     if (req.method === 'DELETE') {
       if (supabase) {
-        // First retrieve file path to clean up storage
+        // First retrieve file paths to clean up storage
         const { data: record } = await supabase
           .from('submissions')
-          .select('aadhar_file_path')
+          .select('aadhar_file_path, photo_file_path')
           .eq('id', id)
           .single();
 
-        if (record?.aadhar_file_path) {
+        const filesToDelete = [];
+        if (record?.aadhar_file_path) filesToDelete.push(record.aadhar_file_path);
+        if (record?.photo_file_path) filesToDelete.push(record.photo_file_path);
+
+        if (filesToDelete.length > 0) {
           await supabase.storage
             .from(bucketName)
-            .remove([record.aadhar_file_path]);
+            .remove(filesToDelete);
         }
 
         const { error } = await supabase

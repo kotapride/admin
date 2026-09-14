@@ -42,68 +42,106 @@ export default async function handler(req, res) {
 
     if (supabase) {
       // 2a. Query Submissions from Supabase
-      let query = supabase
+      let baseQuery = supabase
         .from('submissions')
         .select('*', { count: 'exact' });
-
-      // Status filter
-      if (status && status !== 'ALL') {
-        query = query.eq('status', status.toUpperCase());
-      }
 
       // Search filter
       if (search && search.trim()) {
         const cleanSearch = search.trim();
-        query = query.or(
+        baseQuery = baseQuery.or(
           `full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,aadhar_number.ilike.%${cleanSearch}%`
         );
       }
 
-      // Sorting & Pagination
-      query = query
-        .order(sortBy, { ascending: sortOrder === 'asc' })
-        .range(offset, offset + limitNum - 1);
+      baseQuery = baseQuery.order(sortBy, { ascending: sortOrder === 'asc' });
 
-      const { data: records, count, error } = await query;
+      let records = [];
+      let totalRecordsCount = 0;
 
-      if (error) {
-        throw error;
+      if (status && status !== 'ALL') {
+        // Attempt query with status column filter
+        const statusQuery = baseQuery.eq('status', status.toUpperCase());
+        const { data: statusData, count: statusCount, error: statusError } = await statusQuery.range(offset, offset + limitNum - 1);
+
+        if (!statusError) {
+          records = statusData || [];
+          totalRecordsCount = statusCount || 0;
+        } else if (statusError.message?.includes('status')) {
+          // Status column does not exist in DB yet: fetch all and filter in memory
+          const { data: allData, error: allErr } = await baseQuery;
+          if (allErr) throw allErr;
+          const mapped = (allData || []).map((r) => ({ ...r, status: r.status || 'PENDING' }));
+          const filtered = mapped.filter((r) => r.status === status.toUpperCase());
+          totalRecordsCount = filtered.length;
+          records = filtered.slice(offset, offset + limitNum);
+        } else {
+          throw statusError;
+        }
+      } else {
+        const { data: allData, count: countVal, error: allErr } = await baseQuery.range(offset, offset + limitNum - 1);
+        if (allErr) throw allErr;
+        records = allData || [];
+        totalRecordsCount = countVal || 0;
       }
 
-      // 2b. Compute Summary Stats
-      const { count: totalCount } = await supabase
-        .from('submissions')
-        .select('*', { count: 'exact', head: true });
+      const sanitizedRecords = records.map((r) => ({
+        ...r,
+        status: r.status || 'PENDING'
+      }));
 
-      const { count: pendingCount } = await supabase
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'PENDING');
+      // 2b. Compute Summary Stats gracefully
+      let totalCount = totalRecordsCount;
+      let pendingCount = totalRecordsCount;
+      let approvedCount = 0;
+      let rejectedCount = 0;
 
-      const { count: approvedCount } = await supabase
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'APPROVED');
+      try {
+        const { count: tc } = await supabase
+          .from('submissions')
+          .select('*', { count: 'exact', head: true });
+        if (tc !== null && tc !== undefined) totalCount = tc;
 
-      const { count: rejectedCount } = await supabase
-        .from('submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'REJECTED');
+        const { count: pc, error: pe } = await supabase
+          .from('submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'PENDING');
+
+        if (!pe) {
+          pendingCount = pc || 0;
+          const { count: ac } = await supabase
+            .from('submissions')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'APPROVED');
+          approvedCount = ac || 0;
+
+          const { count: rc } = await supabase
+            .from('submissions')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'REJECTED');
+          rejectedCount = rc || 0;
+        } else {
+          pendingCount = totalCount;
+        }
+      } catch (e) {
+        // Fallback to computed totals
+        pendingCount = totalCount;
+      }
 
       return res.status(200).json({
         success: true,
-        records: records || [],
+        records: sanitizedRecords,
         pagination: {
           page: pageNum,
           limit: limitNum,
-          totalRecords: count || 0,
-          totalPages: Math.ceil((count || 0) / limitNum)
+          totalRecords: totalRecordsCount,
+          totalPages: Math.ceil(totalRecordsCount / limitNum) || 1
         },
         stats: {
-          total: totalCount || 0,
-          pending: pendingCount || 0,
-          approved: approvedCount || 0,
-          rejected: rejectedCount || 0
+          total: totalCount,
+          pending: pendingCount,
+          approved: approvedCount,
+          rejected: rejectedCount
         }
       });
     } else {

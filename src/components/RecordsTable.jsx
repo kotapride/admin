@@ -24,7 +24,9 @@ export default function RecordsTable({
   onPageChange,
   onRefresh,
   onSelectRecord,
-  onQuickStatusChange
+  onQuickStatusChange,
+  token,
+  onRecordUpdated
 }) {
   const [certStudent, setCertStudent] = useState(null);
 
@@ -48,7 +50,7 @@ export default function RecordsTable({
       r.email,
       r.phone,
       r.aadhar_number,
-      r.status,
+      r.status || 'PENDING',
       `"${new Date(r.created_at).toISOString()}"`
     ]);
 
@@ -125,8 +127,45 @@ export default function RecordsTable({
                 records.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <div className="applicant-name">{r.full_name}</div>
-                      <div className="applicant-email">{r.email}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {r.photo_url ? (
+                          <img
+                            src={r.photo_url}
+                            alt={r.full_name}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '1.5px solid var(--border-color, #e2e8f0)',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                              flexShrink: 0
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: '#e0e7ff',
+                              color: '#4338ca',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              flexShrink: 0
+                            }}
+                          >
+                            {(r.full_name || 'U').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="applicant-name">{r.full_name}</div>
+                          <div className="applicant-email">{r.email || (r.class ? `${r.class} • ${r.course || ''}` : '')}</div>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <span className="mono-cell" style={{ letterSpacing: '0.06em' }}>
@@ -142,9 +181,9 @@ export default function RecordsTable({
                       </span>
                     </td>
                     <td>
-                      <span className={`badge ${r.status.toLowerCase()}`}>
+                      <span className={`badge ${(r.status || 'PENDING').toLowerCase()}`}>
                         <span className="badge-dot"></span>
-                        {r.status}
+                        {r.status || 'PENDING'}
                       </span>
                     </td>
                     <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -227,7 +266,14 @@ export default function RecordsTable({
       {certStudent && (
         <CertificateGenerator 
           student={certStudent} 
+          token={token}
           onClose={() => setCertStudent(null)} 
+          onPhotoUpdated={(updatedRecord) => {
+            setCertStudent(updatedRecord);
+            if (typeof onRecordUpdated === 'function') {
+              onRecordUpdated(updatedRecord);
+            }
+          }}
         />
       )}
     </div>
